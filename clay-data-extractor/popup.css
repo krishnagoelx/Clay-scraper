@@ -120,33 +120,11 @@ h2 {
   color: #334155;
 }
 
-.api-count {
-  margin-top: 4px;
-  text-align: center;
+.hint {
   font-size: 11px;
   color: #94a3b8;
-}
-
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-
-.badge.api {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.badge.dom {
-  background: #fef3c7;
-  color: #b45309;
+  margin-top: 6px;
+  text-align: center;
 }
 
 /* ── Buttons ─────────────────────────────────────────────── */
@@ -236,6 +214,71 @@ h2 {
 
 .divider span {
   padding: 0 10px;
+}
+
+/* ── Row Range ───────────────────────────────────────────── */
+
+.range-section {
+  margin-bottom: 10px;
+}
+
+.range-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.range-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.range-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: #1a1a2e;
+  background: white;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.range-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.range-input::placeholder {
+  color: #94a3b8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.btn-link:hover {
+  background: #eff6ff;
+}
+
+.range-hint {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 3px;
 }
 
 /* ── Format Toggle ───────────────────────────────────────── */

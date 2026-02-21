@@ -54,15 +54,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case 'EXPORT_CSV':
-      exportAsFile('csv', sendResponse);
+      exportAsFile('csv', message.range, sendResponse);
       return true;
 
     case 'EXPORT_JSON':
-      exportAsFile('json', sendResponse);
+      exportAsFile('json', message.range, sendResponse);
       return true;
 
     case 'COPY_CLIPBOARD':
-      copyToClipboard(message.format || 'csv', sendResponse);
+      copyToClipboard(message.format || 'csv', message.range, sendResponse);
       return true;
 
     case 'CLEAR_DATA':
@@ -375,13 +375,21 @@ function generateJSON(headers, rows) {
 // File Export
 // ═══════════════════════════════════════════════════════════
 
-async function exportAsFile(format, sendResponse) {
+// Apply row range to rows array. Range is 1-indexed inclusive, or null for all.
+function applyRange(rows, range) {
+  if (!range) return rows;
+  // range.start and range.end are 1-indexed inclusive
+  return rows.slice(range.start - 1, range.end);
+}
+
+async function exportAsFile(format, range, sendResponse) {
   if (!capturedData.parsedTable) {
     sendResponse({ success: false, error: 'No data captured yet' });
     return;
   }
 
-  const { headers, rows } = capturedData.parsedTable;
+  const { headers } = capturedData.parsedTable;
+  const rows = applyRange(capturedData.parsedTable.rows, range);
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
   let content, mimeType, extension;
 
@@ -395,7 +403,8 @@ async function exportAsFile(format, sendResponse) {
     extension = 'csv';
   }
 
-  const filename = `clay-export-${timestamp}.${extension}`;
+  const rangeLabel = range ? `_rows${range.start}-${range.end}` : '';
+  const filename = `clay-export-${timestamp}${rangeLabel}.${extension}`;
 
   try {
     // Use data URL approach (works reliably in service workers)
@@ -418,13 +427,14 @@ async function exportAsFile(format, sendResponse) {
 // Clipboard (via Offscreen Document)
 // ═══════════════════════════════════════════════════════════
 
-async function copyToClipboard(format, sendResponse) {
+async function copyToClipboard(format, range, sendResponse) {
   if (!capturedData.parsedTable) {
     sendResponse({ success: false, error: 'No data captured yet' });
     return;
   }
 
-  const { headers, rows } = capturedData.parsedTable;
+  const { headers } = capturedData.parsedTable;
+  const rows = applyRange(capturedData.parsedTable.rows, range);
   const text = format === 'json' ? generateJSON(headers, rows) : generateCSV(headers, rows);
 
   try {
