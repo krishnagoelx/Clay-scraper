@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <div class="header">
+        <h1>Clay Data Extractor</h1>
+        <button id="btn-clear" class="btn-icon" title="Clear captured data">&#x2715;</button>
+      </div>
+
+      <!-- Status -->
+      <div id="status-section" class="section">
+        <div id="status-indicator" class="status idle">Checking...</div>
+        <div id="data-info" class="data-info hidden">
+          <span id="row-count">0</span> rows &times; <span id="col-count">0</span> columns
+          <span id="capture-method" class="badge"></span>
+        </div>
+        <div id="api-count" class="api-count hidden">
+          <span id="api-response-count">0</span> API responses intercepted
+        </div>
+      </div>
+
+      <!-- Capture -->
+      <div id="capture-section" class="section">
+        <h2>Step 1: Capture Data</h2>
+
+        <button id="btn-use-api" class="btn primary full-width" title="Parse data from intercepted API responses">
+          Use Intercepted Data
+        </button>
+
+        <div class="divider"><span>or scrape from DOM</span></div>
+
+        <div class="button-row">
+          <button id="btn-scrape-visible" class="btn secondary">Visible Rows</button>
+          <button id="btn-scrape-all" class="btn secondary">All Rows (Scroll)</button>
+        </div>
+      </div>
+
+      <!-- Export -->
+      <div id="export-section" class="section hidden">
+        <h2>Step 2: Export</h2>
+
+        <div class="format-toggle">
+          <label class="format-option">
+            <input type="radio" name="format" value="csv" checked />
+            <span>CSV</span>
+          </label>
+          <label class="format-option">
+            <input type="radio" name="format" value="json" />
+            <span>JSON</span>
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="btn-download" class="btn primary">
+            <span class="btn-icon-inline">&#x2B73;</span> Download
+          </button>
+          <button id="btn-copy" class="btn secondary">
+            <span class="btn-icon-inline">&#x2398;</span> Copy
+          </button>
+        </div>
+      </div>
+
+      <!-- Log -->
+      <div id="log-section" class="section">
+        <div id="log" class="log"></div>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

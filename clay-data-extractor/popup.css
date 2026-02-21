@@ -1,0 +1,349 @@
+/* =============================================================
+   popup.css — Clay Data Extractor popup styling
+   ============================================================= */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 340px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: #1a1a2e;
+  background: #fafbfc;
+  line-height: 1.4;
+}
+
+.container {
+  padding: 16px;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e8eaed;
+}
+
+h1 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+}
+
+h2 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #64748b;
+  margin-bottom: 10px;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #94a3b8;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.btn-icon:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* ── Sections ────────────────────────────────────────────── */
+
+.section {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e8eaed;
+}
+
+.section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* ── Status ──────────────────────────────────────────────── */
+
+.status {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.status.idle {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.status.ready {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.status.has-data {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.status.error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.data-info {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.api-count {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.badge.api {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badge.dom {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+
+.btn {
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: #2563eb;
+  color: white;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn.primary:active:not(:disabled) {
+  background: #1e40af;
+}
+
+.btn.secondary {
+  background: white;
+  color: #334155;
+  border-color: #d1d5db;
+}
+
+.btn.secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #9ca3af;
+}
+
+.btn.secondary:active:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.btn.full-width {
+  width: 100%;
+}
+
+.btn-icon-inline {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.button-row .btn {
+  flex: 1;
+}
+
+/* ── Divider ─────────────────────────────────────────────── */
+
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 10px 0;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.divider span {
+  padding: 0 10px;
+}
+
+/* ── Format Toggle ───────────────────────────────────────── */
+
+.format-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 3px;
+}
+
+.format-option {
+  flex: 1;
+  cursor: pointer;
+  text-align: center;
+}
+
+.format-option input {
+  display: none;
+}
+
+.format-option span {
+  display: block;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.15s;
+}
+
+.format-option input:checked + span {
+  background: white;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Log ─────────────────────────────────────────────────── */
+
+.log {
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 11px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+.log:empty::after {
+  content: 'Activity log will appear here...';
+  color: #cbd5e1;
+  font-style: italic;
+}
+
+.log-entry {
+  padding: 3px 0;
+  color: #64748b;
+  border-bottom: 1px solid #f1f5f9;
+  word-break: break-word;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-entry.error {
+  color: #dc2626;
+}
+
+.log-entry.success {
+  color: #059669;
+}
+
+.log-entry .time {
+  color: #94a3b8;
+  margin-right: 6px;
+}
+
+/* ── Utilities ───────────────────────────────────────────── */
+
+.hidden {
+  display: none !important;
+}
+
+/* Loading spinner on buttons */
+.btn.loading {
+  position: relative;
+  color: transparent;
+}
+
+.btn.loading::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.btn.secondary.loading::after {
+  border-color: rgba(0, 0, 0, 0.15);
+  border-top-color: #334155;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
