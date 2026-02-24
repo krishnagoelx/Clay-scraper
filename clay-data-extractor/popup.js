@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
   await refreshStatus();
   bindButtons();
+  // Fetch table metadata (search params) in background
+  fetchMeta();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -61,6 +63,36 @@ function showDataInfo(status) {
   dataInfoEl.classList.remove('hidden');
   document.getElementById('row-count').textContent = status.rowCount;
   document.getElementById('col-count').textContent = status.headerCount;
+
+  // Show table name if we have metadata
+  if (status.tableMeta?.tableName) {
+    showTableMeta(status.tableMeta);
+  }
+}
+
+function showTableMeta(meta) {
+  const metaEl = document.getElementById('table-meta');
+  if (!metaEl) return;
+  metaEl.classList.remove('hidden');
+
+  const nameEl = document.getElementById('meta-table-name');
+  if (nameEl) nameEl.textContent = meta.tableName || '';
+
+  const sourceEl = document.getElementById('meta-source-label');
+  if (sourceEl) {
+    sourceEl.textContent = meta.sourceLabel || meta.sourceName || '';
+  }
+}
+
+async function fetchMeta() {
+  try {
+    const result = await chrome.runtime.sendMessage({ action: 'FETCH_TABLE_META' });
+    if (result?.success) {
+      showTableMeta(result);
+    }
+  } catch (e) {
+    // Silently ignore — metadata is optional
+  }
 }
 
 function showExportSection() {

@@ -127,6 +127,30 @@ h2 {
   text-align: center;
 }
 
+/* ── Table Metadata ─────────────────────────────────────── */
+
+.table-meta {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-radius: 5px;
+  border: 1px solid #e2e8f0;
+}
+
+.meta-row {
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta-label {
+  font-weight: 600;
+  color: #64748b;
+}
+
 /* ── Buttons ─────────────────────────────────────────────── */
 
 .btn {

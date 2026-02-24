@@ -16,6 +16,7 @@ let capturedData = {
   method: null, // 'api' | 'dom_visible' | 'dom_scroll'
   capturedAt: null,
   sourceUrl: null,
+  tableMeta: null, // { tableName, sourceName, sourceLabel, totalRecords, searchParams }
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -49,6 +50,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       forwardToContentScript(message.action, sendResponse);
       return true;
 
+    case 'FETCH_TABLE_META':
+      fetchTableMeta(sendResponse);
+      return true;
+
     case 'TRIGGER_DATA_RELOAD':
       forwardToContentScript('TRIGGER_DATA_RELOAD', sendResponse);
       return true;
@@ -72,6 +77,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         method: null,
         capturedAt: null,
         sourceUrl: null,
+        tableMeta: null,
       };
       sendResponse({ ok: true });
       return false;
@@ -101,6 +107,7 @@ function getStatus() {
     capturedAt: capturedData.capturedAt,
     apiResponseCount: capturedData.apiResponses.length,
     sourceUrl: capturedData.sourceUrl,
+    tableMeta: capturedData.tableMeta,
   };
 }
 
@@ -341,6 +348,59 @@ async function forwardToContentScript(action, sendResponse) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Table Metadata
+// ═══════════════════════════════════════════════════════════
+
+async function fetchTableMeta(sendResponse) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url?.includes('app.clay.com')) {
+      sendResponse({ success: false, error: 'Not on a Clay page' });
+      return;
+    }
+
+    const result = await chrome.tabs.sendMessage(tab.id, { action: 'FETCH_TABLE_META' });
+    if (result?.success) {
+      capturedData.tableMeta = result;
+    }
+    sendResponse(result);
+  } catch (err) {
+    sendResponse({ success: false, error: err.message });
+  }
+}
+
+function buildSmartFilename(format, range) {
+  const meta = capturedData.tableMeta;
+  const parts = [];
+
+  if (meta?.sourceLabel) {
+    // Sanitize for filename: replace spaces and special chars
+    parts.push(sanitizeFilename(meta.sourceLabel));
+  } else if (meta?.tableName) {
+    parts.push(sanitizeFilename(meta.tableName));
+  } else {
+    parts.push('clay-export');
+  }
+
+  const rangeLabel = range ? `_rows${range.start}-${range.end}` : '';
+  if (rangeLabel) parts.push(rangeLabel);
+
+  const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  parts.push(timestamp);
+
+  return parts.join('_') + '.' + format;
+}
+
+function sanitizeFilename(str) {
+  return str
+    .replace(/[<>:"/\\|?*]/g, '') // remove invalid chars
+    .replace(/\s+/g, '_')         // spaces to underscores
+    .replace(/_+/g, '_')          // collapse multiple underscores
+    .replace(/^_|_$/g, '')        // trim underscores
+    .substring(0, 80);            // limit length
+}
+
+// ═══════════════════════════════════════════════════════════
 // CSV / JSON Generation
 // ═══════════════════════════════════════════════════════════
 
@@ -390,7 +450,6 @@ async function exportAsFile(format, range, sendResponse) {
 
   const { headers } = capturedData.parsedTable;
   const rows = applyRange(capturedData.parsedTable.rows, range);
-  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
   let content, mimeType, extension;
 
   if (format === 'json') {
@@ -403,8 +462,7 @@ async function exportAsFile(format, range, sendResponse) {
     extension = 'csv';
   }
 
-  const rangeLabel = range ? `_rows${range.start}-${range.end}` : '';
-  const filename = `clay-export-${timestamp}${rangeLabel}.${extension}`;
+  const filename = buildSmartFilename(extension, range);
 
   try {
     // Use data URL approach (works reliably in service workers)

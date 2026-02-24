@@ -52,6 +52,10 @@
         scrapeAllRowsByScrolling().then(sendResponse);
         return true;
 
+      case 'FETCH_TABLE_META':
+        fetchTableMetadata().then(sendResponse);
+        return true;
+
       case 'TRIGGER_DATA_RELOAD':
         window.postMessage({ type: MSG_PREFIX, action: 'TRIGGER_RELOAD' }, '*');
         sendResponse({ ok: true });
@@ -430,6 +434,120 @@
 
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 9: Fetch Table Metadata from Clay API
+  // Extracts table name + source search parameters for filenames
+  // ═══════════════════════════════════════════════════════════
+
+  async function fetchTableMetadata() {
+    try {
+      const url = window.location.href;
+      const tableId = url.match(/tables\/(t_[^/]+)/)?.[1];
+      if (!tableId) {
+        return { success: false, error: 'Could not find table ID in URL' };
+      }
+
+      // Fetch table name from document title as fallback
+      const titleMatch = document.title.match(/Clay\s*\|\s*(.+)/);
+      const tableName = titleMatch ? titleMatch[1].trim() : '';
+
+      // Fetch sources (contains search parameters)
+      const srcRes = await fetch(`https://api.clay.com/v3/sources?tableId=${tableId}`, { credentials: 'include' });
+      if (!srcRes.ok) {
+        return { success: true, tableName, sourceLabel: '', searchParams: {} };
+      }
+
+      const sources = await srcRes.json();
+      if (!Array.isArray(sources) || sources.length === 0) {
+        return { success: true, tableName, sourceLabel: '', searchParams: {} };
+      }
+
+      const source = sources[0];
+      const inputs = source.typeSettings?.inputs || {};
+      const sourceName = source.name || source.typeSettings?.name || '';
+      const totalRecords = source.state?.numSourceRecords || 0;
+
+      // Build a descriptive label from the search parameters
+      const parts = [];
+
+      // School names
+      if (inputs.school_names?.length) {
+        const schools = inputs.school_names.map(s => abbreviateSchool(s));
+        parts.push(schools.join('+'));
+      }
+
+      // Job title keywords
+      if (inputs.job_title_keywords?.length) {
+        parts.push(inputs.job_title_keywords.join('+'));
+      }
+
+      // Company industries
+      if (inputs.company_industries_include?.length) {
+        const industries = inputs.company_industries_include.map(i => abbreviateIndustry(i));
+        parts.push(industries.join('+'));
+      }
+
+      // Locations (countries)
+      if (inputs.location_countries_include?.length) {
+        parts.push(inputs.location_countries_include.map(c => abbreviateCountry(c)).join('+'));
+      }
+
+      // Company sizes
+      if (inputs.company_sizes?.length) {
+        parts.push('size' + inputs.company_sizes.join(','));
+      }
+
+      // Headline keywords
+      if (inputs.headline_keywords?.length) {
+        parts.push(inputs.headline_keywords.join('+'));
+      }
+
+      // Profile keywords
+      if (inputs.profile_keywords?.length) {
+        parts.push(inputs.profile_keywords.join('+'));
+      }
+
+      const sourceLabel = parts.length > 0 ? parts.join('_') : sourceName;
+
+      log(`Table metadata: name="${tableName}", source="${sourceLabel}"`);
+      return {
+        success: true,
+        tableName,
+        sourceName,
+        sourceLabel,
+        totalRecords,
+        searchParams: inputs,
+      };
+    } catch (err) {
+      log('fetchTableMetadata error:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  function abbreviateSchool(name) {
+    // "Indian Institute of Technology" → "IIT", etc.
+    if (/indian institute of technology/i.test(name)) return 'IIT';
+    if (/indian institute of management/i.test(name)) return 'IIM';
+    // Remove common words, take first letters
+    return name.replace(/\b(of|the|and|in|for)\b/gi, '').trim().substring(0, 20);
+  }
+
+  function abbreviateIndustry(name) {
+    return name
+      .replace(/\band\b/gi, '&')
+      .replace(/\bServices\b/gi, 'Svc')
+      .replace(/\bTechnology\b/gi, 'Tech')
+      .replace(/\bManagement\b/gi, 'Mgmt')
+      .replace(/\bConsulting\b/gi, 'Consult')
+      .replace(/\bEngineering\b/gi, 'Eng')
+      .trim();
+  }
+
+  function abbreviateCountry(name) {
+    const map = { 'United States': 'US', 'United Kingdom': 'UK', 'United Arab Emirates': 'UAE', 'India': 'IN', 'Canada': 'CA', 'Australia': 'AU', 'Germany': 'DE', 'France': 'FR' };
+    return map[name] || name.substring(0, 10);
   }
 
   log('Content script loaded (Clay-specific selectors)');
