@@ -78,10 +78,21 @@ function showTableMeta(meta) {
   const nameEl = document.getElementById('meta-table-name');
   if (nameEl) nameEl.textContent = meta.tableName || '';
 
-  const sourceEl = document.getElementById('meta-source-label');
-  if (sourceEl) {
-    sourceEl.textContent = meta.sourceLabel || meta.sourceName || '';
+  // Show all search fields
+  const fieldsEl = document.getElementById('meta-search-fields');
+  if (fieldsEl && meta.searchFields) {
+    fieldsEl.innerHTML = '';
+    for (const [key, val] of Object.entries(meta.searchFields)) {
+      const row = document.createElement('div');
+      row.className = 'meta-row';
+      row.innerHTML = `<span class="meta-label">${escapeHtml(key)}:</span> ${escapeHtml(val)}`;
+      fieldsEl.appendChild(row);
+    }
   }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 async function fetchMeta() {

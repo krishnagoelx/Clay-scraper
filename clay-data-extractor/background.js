@@ -374,7 +374,6 @@ function buildSmartFilename(format, range) {
   const parts = [];
 
   if (meta?.sourceLabel) {
-    // Sanitize for filename: replace spaces and special chars
     parts.push(sanitizeFilename(meta.sourceLabel));
   } else if (meta?.tableName) {
     parts.push(sanitizeFilename(meta.tableName));
@@ -382,11 +381,7 @@ function buildSmartFilename(format, range) {
     parts.push('clay-export');
   }
 
-  const rangeLabel = range ? `_rows${range.start}-${range.end}` : '';
-  if (rangeLabel) parts.push(rangeLabel);
-
-  const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  parts.push(timestamp);
+  if (range) parts.push(`rows${range.start}-${range.end}`);
 
   return parts.join('_') + '.' + format;
 }
@@ -404,16 +399,45 @@ function sanitizeFilename(str) {
 // CSV / JSON Generation
 // ═══════════════════════════════════════════════════════════
 
+function buildSearchMetadata() {
+  const meta = capturedData.tableMeta;
+  if (!meta) return null;
+
+  const result = {};
+  if (meta.tableName) result['Table Name'] = meta.tableName;
+  if (meta.sourceName) result['Source'] = meta.sourceName;
+  if (meta.totalRecords) result['Total Records'] = meta.totalRecords;
+
+  // Include all search fields the user entered
+  if (meta.searchFields) {
+    Object.assign(result, meta.searchFields);
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
 function generateCSV(headers, rows) {
   const escape = val => {
     const str = String(val ?? '');
-    // Always quote fields to handle edge cases
     return '"' + str.replace(/"/g, '""') + '"';
   };
 
-  const lines = [headers.map(escape).join(',')];
+  const lines = [];
+
+  // Add search metadata as comment rows at the top
+  const metadata = buildSearchMetadata();
+  if (metadata) {
+    lines.push('"--- SEARCH PARAMETERS ---"');
+    for (const [key, val] of Object.entries(metadata)) {
+      lines.push(`${escape(key)},${escape(String(val))}`);
+    }
+    lines.push('"---"');
+    lines.push(''); // blank line separator
+  }
+
+  // Header row + data rows
+  lines.push(headers.map(escape).join(','));
   for (const row of rows) {
-    // Ensure row has same number of columns as headers
     const paddedRow = headers.map((_, i) => escape(row[i]));
     lines.push(paddedRow.join(','));
   }
@@ -428,6 +452,16 @@ function generateJSON(headers, rows) {
     });
     return obj;
   });
+
+  // Wrap with metadata
+  const metadata = buildSearchMetadata();
+  if (metadata) {
+    return JSON.stringify({
+      _searchParameters: metadata,
+      data: records,
+    }, null, 2);
+  }
+
   return JSON.stringify(records, null, 2);
 }
 

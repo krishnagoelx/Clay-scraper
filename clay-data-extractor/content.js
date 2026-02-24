@@ -469,56 +469,43 @@
       const sourceName = source.name || source.typeSettings?.name || '';
       const totalRecords = source.state?.numSourceRecords || 0;
 
-      // Build a descriptive label from the search parameters
-      const parts = [];
+      // Collect ALL non-empty search fields as human-readable metadata
+      const searchFields = {};
+      const filenameParts = [];
 
-      // School names
-      if (inputs.school_names?.length) {
-        const schools = inputs.school_names.map(s => abbreviateSchool(s));
-        parts.push(schools.join('+'));
+      for (const [key, val] of Object.entries(inputs)) {
+        // Skip empty/null/default values
+        if (val === null || val === undefined || val === '' || val === false) continue;
+        if (Array.isArray(val) && val.length === 0) continue;
+        if (typeof val === 'number' && val === 0) continue;
+        // Skip internal/technical fields
+        if (/bitmap|method|table_id|record_id|raw_location|past_experiences|exact_match/i.test(key)) continue;
+        if (key === 'limit' || key === 'name') continue;
+
+        // Store the raw value for metadata
+        const readableKey = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        searchFields[readableKey] = Array.isArray(val) ? val.join(', ') : String(val);
+
+        // Build filename parts from the most descriptive fields
+        if (Array.isArray(val) && val.length > 0) {
+          const abbreviated = val.map(v => abbreviateValue(key, v));
+          filenameParts.push(abbreviated.join('+'));
+        } else if (typeof val === 'number' && val > 0) {
+          filenameParts.push(`${key.replace(/_/g, '')}${val}`);
+        }
       }
 
-      // Job title keywords
-      if (inputs.job_title_keywords?.length) {
-        parts.push(inputs.job_title_keywords.join('+'));
-      }
+      const sourceLabel = filenameParts.length > 0 ? filenameParts.join('_') : sourceName;
 
-      // Company industries
-      if (inputs.company_industries_include?.length) {
-        const industries = inputs.company_industries_include.map(i => abbreviateIndustry(i));
-        parts.push(industries.join('+'));
-      }
-
-      // Locations (countries)
-      if (inputs.location_countries_include?.length) {
-        parts.push(inputs.location_countries_include.map(c => abbreviateCountry(c)).join('+'));
-      }
-
-      // Company sizes
-      if (inputs.company_sizes?.length) {
-        parts.push('size' + inputs.company_sizes.join(','));
-      }
-
-      // Headline keywords
-      if (inputs.headline_keywords?.length) {
-        parts.push(inputs.headline_keywords.join('+'));
-      }
-
-      // Profile keywords
-      if (inputs.profile_keywords?.length) {
-        parts.push(inputs.profile_keywords.join('+'));
-      }
-
-      const sourceLabel = parts.length > 0 ? parts.join('_') : sourceName;
-
-      log(`Table metadata: name="${tableName}", source="${sourceLabel}"`);
+      log(`Table metadata: name="${tableName}", source="${sourceLabel}", fields=${Object.keys(searchFields).length}`);
       return {
         success: true,
         tableName,
         sourceName,
         sourceLabel,
         totalRecords,
-        searchParams: inputs,
+        searchFields,   // ALL non-empty search params as readable key-value pairs
+        searchParams: inputs,  // raw params
       };
     } catch (err) {
       log('fetchTableMetadata error:', err);
@@ -526,28 +513,29 @@
     }
   }
 
-  function abbreviateSchool(name) {
-    // "Indian Institute of Technology" → "IIT", etc.
-    if (/indian institute of technology/i.test(name)) return 'IIT';
-    if (/indian institute of management/i.test(name)) return 'IIM';
-    // Remove common words, take first letters
-    return name.replace(/\b(of|the|and|in|for)\b/gi, '').trim().substring(0, 20);
-  }
+  function abbreviateValue(key, value) {
+    if (typeof value !== 'string') return String(value);
 
-  function abbreviateIndustry(name) {
-    return name
-      .replace(/\band\b/gi, '&')
-      .replace(/\bServices\b/gi, 'Svc')
-      .replace(/\bTechnology\b/gi, 'Tech')
-      .replace(/\bManagement\b/gi, 'Mgmt')
-      .replace(/\bConsulting\b/gi, 'Consult')
-      .replace(/\bEngineering\b/gi, 'Eng')
-      .trim();
-  }
+    // Country abbreviations
+    const countries = { 'United States': 'US', 'United Kingdom': 'UK', 'United Arab Emirates': 'UAE', 'India': 'IN', 'Canada': 'CA', 'Australia': 'AU', 'Germany': 'DE', 'France': 'FR', 'Singapore': 'SG', 'Japan': 'JP', 'China': 'CN', 'Brazil': 'BR', 'Netherlands': 'NL', 'Switzerland': 'CH', 'Israel': 'IL' };
+    if (countries[value]) return countries[value];
 
-  function abbreviateCountry(name) {
-    const map = { 'United States': 'US', 'United Kingdom': 'UK', 'United Arab Emirates': 'UAE', 'India': 'IN', 'Canada': 'CA', 'Australia': 'AU', 'Germany': 'DE', 'France': 'FR' };
-    return map[name] || name.substring(0, 10);
+    // School abbreviations
+    if (/indian institute of technology/i.test(value)) return 'IIT';
+    if (/indian institute of management/i.test(value)) return 'IIM';
+    if (/indian institute of science/i.test(value)) return 'IISc';
+
+    // Industry shortening
+    if (key.includes('industr')) {
+      return value
+        .replace(/\band\b/gi, '&').replace(/\bServices\b/gi, 'Svc')
+        .replace(/\bTechnology\b/gi, 'Tech').replace(/\bManagement\b/gi, 'Mgmt')
+        .replace(/\bConsulting\b/gi, 'Consult').replace(/\bEngineering\b/gi, 'Eng')
+        .trim();
+    }
+
+    // For location states/cities, keep as-is but truncate
+    return value.substring(0, 25);
   }
 
   log('Content script loaded (Clay-specific selectors)');
