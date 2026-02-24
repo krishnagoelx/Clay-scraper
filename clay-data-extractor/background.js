@@ -520,18 +520,7 @@ function generateCSV(headers, rows) {
 
   const lines = [];
 
-  // Add search metadata as comment rows at the top
-  const metadata = buildSearchMetadata();
-  if (metadata) {
-    lines.push('"--- SEARCH PARAMETERS ---"');
-    for (const [key, val] of Object.entries(metadata)) {
-      lines.push(`${escape(key)},${escape(String(val))}`);
-    }
-    lines.push('"---"');
-    lines.push(''); // blank line separator
-  }
-
-  // Header row + data rows
+  // Header row + data rows only (no metadata)
   lines.push(headers.map(escape).join(','));
   for (const row of rows) {
     const paddedRow = headers.map((_, i) => escape(row[i]));
