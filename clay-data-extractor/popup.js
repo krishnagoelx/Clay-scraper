@@ -97,12 +97,23 @@ function escapeHtml(str) {
 
 async function fetchMeta() {
   try {
+    log('Fetching table metadata...');
     const result = await chrome.runtime.sendMessage({ action: 'FETCH_TABLE_META' });
     if (result?.success) {
+      log(`Table: "${result.tableName}"`, 'success');
+      log(`Source: "${result.sourceName}"`, 'success');
+      log(`Filename will be: "${result.sourceLabel}"`, 'success');
+      if (result.searchFields) {
+        for (const [key, val] of Object.entries(result.searchFields)) {
+          log(`  ${key}: ${val}`);
+        }
+      }
       showTableMeta(result);
+    } else {
+      log('Metadata fetch failed: ' + (result?.error || 'unknown'), 'error');
     }
   } catch (e) {
-    // Silently ignore — metadata is optional
+    log('Metadata fetch error: ' + e.message, 'error');
   }
 }
 

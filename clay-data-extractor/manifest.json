@@ -9,10 +9,12 @@
     "storage",
     "downloads",
     "offscreen",
-    "clipboardWrite"
+    "clipboardWrite",
+    "cookies"
   ],
   "host_permissions": [
-    "https://app.clay.com/*"
+    "https://app.clay.com/*",
+    "https://api.clay.com/*"
   ],
   "background": {
     "service_worker": "background.js"

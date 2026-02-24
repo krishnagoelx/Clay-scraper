@@ -359,14 +359,110 @@ async function fetchTableMeta(sendResponse) {
       return;
     }
 
-    const result = await chrome.tabs.sendMessage(tab.id, { action: 'FETCH_TABLE_META' });
-    if (result?.success) {
-      capturedData.tableMeta = result;
+    const tableIdMatch = tab.url.match(/tables\/(t_[^/]+)/);
+    if (!tableIdMatch) {
+      sendResponse({ success: false, error: 'Could not find table ID in URL' });
+      return;
     }
+    const tableId = tableIdMatch[1];
+    const tableName = (tab.title || '').replace(/\s*\|\s*Clay\s*$/, '').trim();
+
+    console.log(`[Clay Extractor] Using executeScript to fetch sources in page context, tableId=${tableId}`);
+
+    // Execute fetch in the page's MAIN world — identical to running in the browser console
+    // Use __clayOriginalFetch to bypass the interceptor's patched fetch
+    const injectionResults = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      args: [tableId],
+      func: (tId) => {
+        // Use the unpatched fetch stored by our interceptor
+        const fetchFn = window.__clayOriginalFetch || window.fetch;
+        return fetchFn('https://api.clay.com/v3/sources?tableId=' + tId, { credentials: 'include' })
+          .then(function (r) {
+            if (!r.ok) return { ok: false, status: r.status };
+            return r.json().then(function (data) { return { ok: true, data: data }; });
+          })
+          .catch(function (e) { return { ok: false, error: e.message }; });
+      },
+    });
+
+    const injResult = injectionResults?.[0]?.result;
+    console.log(`[Clay Extractor] executeScript raw result type: ${typeof injResult}`);
+    console.log(`[Clay Extractor] executeScript result:`, injResult ? JSON.stringify(injResult).substring(0, 800) : 'null/undefined');
+
+    if (!injResult?.ok) {
+      console.log(`[Clay Extractor] Page fetch failed:`, JSON.stringify(injResult));
+      sendResponse({ success: true, tableName, sourceName: '', sourceLabel: '', searchFields: {} });
+      return;
+    }
+
+    const sources = injResult.data;
+    if (!Array.isArray(sources) || sources.length === 0) {
+      console.log(`[Clay Extractor] No sources returned`);
+      sendResponse({ success: true, tableName, sourceName: '', sourceLabel: '', searchFields: {} });
+      return;
+    }
+
+    const source = sources[0];
+    const inputs = source.typeSettings?.inputs || {};
+    const sourceName = source.name || source.typeSettings?.name || '';
+    const totalRecords = source.state?.numSourceRecords || 0;
+
+    console.log(`[Clay Extractor] Source: "${sourceName}", inputs keys: ${Object.keys(inputs).join(', ')}`);
+
+    const result = buildMetadataResult(tableName, sourceName, totalRecords, inputs);
+    capturedData.tableMeta = result;
     sendResponse(result);
   } catch (err) {
+    console.error(`[Clay Extractor] fetchTableMeta error:`, err);
     sendResponse({ success: false, error: err.message });
   }
+}
+
+function buildMetadataResult(tableName, sourceName, totalRecords, inputs) {
+  const searchFields = {};
+  const filenameParts = [];
+  const countries = { 'United States': 'US', 'United Kingdom': 'UK', 'United Arab Emirates': 'UAE', 'India': 'IN', 'Canada': 'CA', 'Australia': 'AU', 'Germany': 'DE', 'France': 'FR', 'Singapore': 'SG', 'Japan': 'JP', 'China': 'CN', 'Brazil': 'BR', 'Netherlands': 'NL', 'Switzerland': 'CH', 'Israel': 'IL' };
+
+  for (const [key, val] of Object.entries(inputs)) {
+    if (val === null || val === undefined || val === '' || val === false) continue;
+    if (Array.isArray(val) && val.length === 0) continue;
+    if (typeof val === 'number' && val === 0) continue;
+    if (/bitmap|method|table_id|record_id|raw_location|past_experiences|exact_match/i.test(key)) continue;
+    if (key === 'limit' || key === 'name') continue;
+
+    const readableKey = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    searchFields[readableKey] = Array.isArray(val) ? val.join(', ') : String(val);
+
+    if (Array.isArray(val) && val.length > 0) {
+      const abbreviated = val.map(v => {
+        if (typeof v !== 'string') return String(v);
+        if (countries[v]) return countries[v];
+        if (/indian institute of technology/i.test(v)) return 'IIT';
+        if (/indian institute of management/i.test(v)) return 'IIM';
+        if (key.includes('industr')) {
+          return v.replace(/\band\b/gi, '&').replace(/\bServices\b/gi, 'Svc').replace(/\bTechnology\b/gi, 'Tech').replace(/\bManagement\b/gi, 'Mgmt').replace(/\bConsulting\b/gi, 'Consult').replace(/\bEngineering\b/gi, 'Eng').trim();
+        }
+        return v.substring(0, 25);
+      });
+      filenameParts.push(abbreviated.join('+'));
+    } else if (typeof val === 'number' && val > 0) {
+      filenameParts.push(`${key.replace(/_/g, '')}${val}`);
+    }
+  }
+
+  const sourceLabel = filenameParts.length > 0 ? filenameParts.join('_') : sourceName;
+
+  return {
+    success: true,
+    tableName,
+    sourceName,
+    sourceLabel,
+    totalRecords,
+    searchFields,
+    searchParams: inputs,
+  };
 }
 
 function buildSmartFilename(format, range) {

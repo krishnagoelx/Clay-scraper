@@ -21,20 +21,24 @@
     if (event.source !== window) return;
     if (event.data?.type !== MSG_PREFIX) return;
 
-    switch (event.data.action) {
-      case 'API_RESPONSE':
-        chrome.runtime.sendMessage({
-          action: 'API_DATA_CAPTURED',
-          payload: event.data.payload,
-        });
-        break;
+    try {
+      switch (event.data.action) {
+        case 'API_RESPONSE':
+          chrome.runtime.sendMessage({
+            action: 'API_DATA_CAPTURED',
+            payload: event.data.payload,
+          });
+          break;
 
-      case 'INTERCEPTOR_READY':
-        chrome.runtime.sendMessage({
-          action: 'INTERCEPTOR_STATUS',
-          payload: { ready: true, timestamp: event.data.payload.timestamp },
-        });
-        break;
+        case 'INTERCEPTOR_READY':
+          chrome.runtime.sendMessage({
+            action: 'INTERCEPTOR_STATUS',
+            payload: { ready: true, timestamp: event.data.payload.timestamp },
+          });
+          break;
+      }
+    } catch (e) {
+      // Extension context invalidated (extension was reloaded) — ignore
     }
   });
 
@@ -437,105 +441,41 @@
   }
 
   // ═══════════════════════════════════════════════════════════
-  // SECTION 9: Fetch Table Metadata from Clay API
-  // Extracts table name + source search parameters for filenames
+  // SECTION 9: Fetch Table Metadata via MAIN world
+  // Requests interceptor.js to fetch from Clay API (needs page cookies)
   // ═══════════════════════════════════════════════════════════
 
   async function fetchTableMetadata() {
-    try {
-      const url = window.location.href;
-      const tableId = url.match(/tables\/(t_[^/]+)/)?.[1];
-      if (!tableId) {
-        return { success: false, error: 'Could not find table ID in URL' };
+    log('Requesting metadata from MAIN world (interceptor.js)...');
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        log('Metadata request timed out after 10s');
+        resolve({ success: false, error: 'Metadata fetch timed out' });
+      }, 10000);
+
+      // Listen for the response from interceptor.js
+      function onMessage(event) {
+        if (event.source !== window) return;
+        if (event.data?.type !== MSG_PREFIX) return;
+        if (event.data.action !== 'TABLE_META_RESULT') return;
+
+        clearTimeout(timeout);
+        window.removeEventListener('message', onMessage);
+
+        const result = event.data.payload;
+        log('Received metadata from MAIN world:', JSON.stringify(result).substring(0, 300));
+        resolve(result);
       }
 
-      // Fetch table name from document title as fallback
-      const titleMatch = document.title.match(/Clay\s*\|\s*(.+)/);
-      const tableName = titleMatch ? titleMatch[1].trim() : '';
+      window.addEventListener('message', onMessage);
 
-      // Fetch sources (contains search parameters)
-      const srcRes = await fetch(`https://api.clay.com/v3/sources?tableId=${tableId}`, { credentials: 'include' });
-      if (!srcRes.ok) {
-        return { success: true, tableName, sourceLabel: '', searchParams: {} };
-      }
-
-      const sources = await srcRes.json();
-      if (!Array.isArray(sources) || sources.length === 0) {
-        return { success: true, tableName, sourceLabel: '', searchParams: {} };
-      }
-
-      const source = sources[0];
-      const inputs = source.typeSettings?.inputs || {};
-      const sourceName = source.name || source.typeSettings?.name || '';
-      const totalRecords = source.state?.numSourceRecords || 0;
-
-      // Collect ALL non-empty search fields as human-readable metadata
-      const searchFields = {};
-      const filenameParts = [];
-
-      for (const [key, val] of Object.entries(inputs)) {
-        // Skip empty/null/default values
-        if (val === null || val === undefined || val === '' || val === false) continue;
-        if (Array.isArray(val) && val.length === 0) continue;
-        if (typeof val === 'number' && val === 0) continue;
-        // Skip internal/technical fields
-        if (/bitmap|method|table_id|record_id|raw_location|past_experiences|exact_match/i.test(key)) continue;
-        if (key === 'limit' || key === 'name') continue;
-
-        // Store the raw value for metadata
-        const readableKey = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        searchFields[readableKey] = Array.isArray(val) ? val.join(', ') : String(val);
-
-        // Build filename parts from the most descriptive fields
-        if (Array.isArray(val) && val.length > 0) {
-          const abbreviated = val.map(v => abbreviateValue(key, v));
-          filenameParts.push(abbreviated.join('+'));
-        } else if (typeof val === 'number' && val > 0) {
-          filenameParts.push(`${key.replace(/_/g, '')}${val}`);
-        }
-      }
-
-      const sourceLabel = filenameParts.length > 0 ? filenameParts.join('_') : sourceName;
-
-      log(`Table metadata: name="${tableName}", source="${sourceLabel}", fields=${Object.keys(searchFields).length}`);
-      return {
-        success: true,
-        tableName,
-        sourceName,
-        sourceLabel,
-        totalRecords,
-        searchFields,   // ALL non-empty search params as readable key-value pairs
-        searchParams: inputs,  // raw params
-      };
-    } catch (err) {
-      log('fetchTableMetadata error:', err);
-      return { success: false, error: err.message };
-    }
-  }
-
-  function abbreviateValue(key, value) {
-    if (typeof value !== 'string') return String(value);
-
-    // Country abbreviations
-    const countries = { 'United States': 'US', 'United Kingdom': 'UK', 'United Arab Emirates': 'UAE', 'India': 'IN', 'Canada': 'CA', 'Australia': 'AU', 'Germany': 'DE', 'France': 'FR', 'Singapore': 'SG', 'Japan': 'JP', 'China': 'CN', 'Brazil': 'BR', 'Netherlands': 'NL', 'Switzerland': 'CH', 'Israel': 'IL' };
-    if (countries[value]) return countries[value];
-
-    // School abbreviations
-    if (/indian institute of technology/i.test(value)) return 'IIT';
-    if (/indian institute of management/i.test(value)) return 'IIM';
-    if (/indian institute of science/i.test(value)) return 'IISc';
-
-    // Industry shortening
-    if (key.includes('industr')) {
-      return value
-        .replace(/\band\b/gi, '&').replace(/\bServices\b/gi, 'Svc')
-        .replace(/\bTechnology\b/gi, 'Tech').replace(/\bManagement\b/gi, 'Mgmt')
-        .replace(/\bConsulting\b/gi, 'Consult').replace(/\bEngineering\b/gi, 'Eng')
-        .trim();
-    }
-
-    // For location states/cities, keep as-is but truncate
-    return value.substring(0, 25);
+      // Ask interceptor.js (MAIN world) to fetch the metadata
+      window.postMessage({
+        type: MSG_PREFIX,
+        action: 'FETCH_TABLE_META',
+      }, '*');
+    });
   }
 
   log('Content script loaded (Clay-specific selectors)');

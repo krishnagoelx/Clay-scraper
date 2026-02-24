@@ -116,6 +116,8 @@
 
   // ── fetch() override ───────────────────────────────────────
   const originalFetch = window.fetch;
+  // Expose for chrome.scripting.executeScript to use unpatched fetch
+  window.__clayOriginalFetch = originalFetch;
 
   window.fetch = async function (...args) {
     const response = await originalFetch.apply(this, args);
@@ -145,7 +147,7 @@
             } catch (e) {
               // Not JSON, ignore
             }
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
     } catch (err) {
@@ -186,8 +188,100 @@
     return originalSend.apply(this, args);
   };
 
+  // ── Fetch table metadata (runs in MAIN world with page cookies) ──
+  async function fetchTableMetadata() {
+    try {
+      const url = window.location.href;
+      const tableId = url.match(/tables\/(t_[^/]+)/)?.[1];
+      if (!tableId) {
+        return { success: false, error: 'Could not find table ID in URL' };
+      }
+
+      const titleMatch = document.title.match(/Clay\s*\|\s*(.+)/);
+      const tableName = titleMatch ? titleMatch[1].trim() : '';
+
+      const apiUrl = `https://api.clay.com/v3/sources?tableId=${tableId}`;
+      log(`Fetching sources: ${apiUrl}`);
+      log(`document.title: "${document.title}", tableId: "${tableId}"`);
+      // Use originalFetch to bypass our own interception
+      const srcRes = await originalFetch(apiUrl, { credentials: 'include' });
+      log(`Sources API response: ${srcRes.status} ${srcRes.statusText}`);
+      if (!srcRes.ok) {
+        const errBody = await srcRes.text();
+        log(`Sources API error body: ${errBody.substring(0, 300)}`);
+        return { success: true, tableName, sourceName: '', sourceLabel: '', searchFields: {} };
+      }
+
+      const rawText = await srcRes.text();
+      log(`Sources raw response (first 800 chars): ${rawText.substring(0, 800)}`);
+      const sources = JSON.parse(rawText);
+      if (!Array.isArray(sources) || sources.length === 0) {
+        return { success: true, tableName, sourceName: '', sourceLabel: '', searchFields: {} };
+      }
+
+      const source = sources[0];
+      const inputs = source.typeSettings?.inputs || {};
+      const sourceName = source.name || source.typeSettings?.name || '';
+      const totalRecords = source.state?.numSourceRecords || 0;
+
+      log(`Source name: "${sourceName}", inputs keys: ${Object.keys(inputs).join(', ')}`);
+
+      const searchFields = {};
+      const filenameParts = [];
+
+      for (const [key, val] of Object.entries(inputs)) {
+        if (val === null || val === undefined || val === '' || val === false) continue;
+        if (Array.isArray(val) && val.length === 0) continue;
+        if (typeof val === 'number' && val === 0) continue;
+        if (/bitmap|method|table_id|record_id|raw_location|past_experiences|exact_match/i.test(key)) continue;
+        if (key === 'limit' || key === 'name') continue;
+
+        const readableKey = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        searchFields[readableKey] = Array.isArray(val) ? val.join(', ') : String(val);
+
+        if (Array.isArray(val) && val.length > 0) {
+          const abbreviated = val.map(v => abbreviateValue(key, v));
+          filenameParts.push(abbreviated.join('+'));
+        } else if (typeof val === 'number' && val > 0) {
+          filenameParts.push(`${key.replace(/_/g, '')}${val}`);
+        }
+      }
+
+      const sourceLabel = filenameParts.length > 0 ? filenameParts.join('_') : sourceName;
+
+      log(`Metadata result — Table: "${tableName}", Source: "${sourceName}", Label: "${sourceLabel}"`);
+      log(`Search fields (${Object.keys(searchFields).length}):`, searchFields);
+
+      return {
+        success: true,
+        tableName,
+        sourceName,
+        sourceLabel,
+        totalRecords,
+        searchFields,
+        searchParams: inputs,
+      };
+    } catch (err) {
+      log('fetchTableMetadata error:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  function abbreviateValue(key, value) {
+    if (typeof value !== 'string') return String(value);
+    const countries = { 'United States': 'US', 'United Kingdom': 'UK', 'United Arab Emirates': 'UAE', 'India': 'IN', 'Canada': 'CA', 'Australia': 'AU', 'Germany': 'DE', 'France': 'FR', 'Singapore': 'SG', 'Japan': 'JP', 'China': 'CN', 'Brazil': 'BR', 'Netherlands': 'NL', 'Switzerland': 'CH', 'Israel': 'IL' };
+    if (countries[value]) return countries[value];
+    if (/indian institute of technology/i.test(value)) return 'IIT';
+    if (/indian institute of management/i.test(value)) return 'IIM';
+    if (/indian institute of science/i.test(value)) return 'IISc';
+    if (key.includes('industr')) {
+      return value.replace(/\band\b/gi, '&').replace(/\bServices\b/gi, 'Svc').replace(/\bTechnology\b/gi, 'Tech').replace(/\bManagement\b/gi, 'Mgmt').replace(/\bConsulting\b/gi, 'Consult').replace(/\bEngineering\b/gi, 'Eng').trim();
+    }
+    return value.substring(0, 25);
+  }
+
   // ── Listen for commands from content script ────────────────
-  window.addEventListener('message', event => {
+  window.addEventListener('message', async event => {
     if (event.source !== window) return;
     if (event.data?.type !== MSG_PREFIX) return;
 
@@ -195,6 +289,16 @@
       log('Reload triggered — scrolling to force re-fetch');
       window.dispatchEvent(new Event('scroll'));
       window.dispatchEvent(new Event('resize'));
+    }
+
+    if (event.data.action === 'FETCH_TABLE_META') {
+      log('Received FETCH_TABLE_META request from content script');
+      const result = await fetchTableMetadata();
+      window.postMessage({
+        type: MSG_PREFIX,
+        action: 'TABLE_META_RESULT',
+        payload: result,
+      }, '*');
     }
   });
 
